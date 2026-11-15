@@ -3,4 +3,5 @@
 *.sqlite
 *.app
 *.dmg
+!dist/Partly.dmg
 .DS_Store

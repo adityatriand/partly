@@ -2,7 +2,7 @@ import SwiftUI
 
 enum Release {
     static let version = "1.1"
-    static let build = "14"
+    static let build = "15"
 }
 
 @main
@@ -20,6 +20,8 @@ struct PartlyApp: App {
                 Button("Refresh Jobs") { Task { await model.refresh() } }
                     .keyboardShortcut("r")
                     .disabled(model.refreshing)
+                Button("Check for Updates") { Task { await model.checkForUpdate() } }
+                    .disabled(model.updating)
             }
         }
     }

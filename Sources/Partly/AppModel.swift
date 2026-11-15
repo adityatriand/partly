@@ -87,6 +87,8 @@ final class AppModel: ObservableObject {
     @Published var showReport = false
     @Published var showAbout = false
     @Published var refreshing = false
+    @Published var updating = false
+    @Published var updateMessage: String?
     @Published var banner: String?
     @Published var noticeHidden = false
     @Published var dark: Bool
@@ -109,6 +111,36 @@ final class AppModel: ObservableObject {
     func hideNotice() {
         banner = nil
         noticeHidden = true
+    }
+
+    func checkForUpdate() async {
+        guard !updating else { return }
+        updating = true
+        noteUpdate("Checking the repository for an update…")
+        do {
+            let remote = try await AppUpdate.remote()
+            let current = Int(Release.build) ?? 0
+            guard remote.asset == "Partly.dmg" else { throw UpdateError.asset }
+            guard remote.build > current else {
+                noteUpdate("You're on the latest version.")
+                updating = false
+                return
+            }
+            noteUpdate("Downloading \(remote.version) (\(remote.build))…")
+            let dmg = try await AppUpdate.download()
+            noteUpdate("Installing \(remote.version) (\(remote.build)). Partly will reopen.")
+            try AppUpdate.beginInstall(dmg: dmg)
+            NSApp.terminate(nil)
+        } catch {
+            noteUpdate(error.localizedDescription)
+            updating = false
+        }
+    }
+
+    private func noteUpdate(_ text: String) {
+        updateMessage = text
+        noticeHidden = false
+        banner = text
     }
 
     var categories: [String] {

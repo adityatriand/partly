@@ -45,6 +45,13 @@ struct RootView: View {
             .buttonStyle(PlainActionButton())
             .accessibilityLabel("Partly, back to jobs")
             Spacer(minLength: 0)
+            Button { Task { await model.checkForUpdate() } } label: {
+                Label(model.updating ? "Checking…" : "Check for updates", systemImage: "arrow.down.circle")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(theme.secondary)
+            }
+            .buttonStyle(PlainActionButton())
+            .disabled(model.updating)
             Button { model.toggleAppearance() } label: {
                 Image(systemName: model.dark ? "sun.max" : "moon")
                     .font(.system(size: 16))
@@ -69,6 +76,7 @@ struct RootView: View {
 }
 
 struct AboutView: View {
+    @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.theme) private var theme
 
@@ -93,6 +101,17 @@ struct AboutView: View {
             Text("Version \(Release.version) (\(Release.build))")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(theme.text)
+            Button { Task { await model.checkForUpdate() } } label: {
+                Text(model.updating ? "Checking…" : "Check for updates")
+            }
+            .buttonStyle(PrimaryButton())
+            .disabled(model.updating)
+            if let updateMessage = model.updateMessage {
+                Text(updateMessage)
+                    .font(.system(size: 13))
+                    .foregroundStyle(theme.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Text("Partly keeps your job list on this Mac. Nothing in the local database is uploaded.")
                 .foregroundStyle(theme.secondary)
                 .fixedSize(horizontal: false, vertical: true)
