@@ -5,7 +5,9 @@ struct FindView: View {
     @EnvironmentObject private var model: AppModel
     let savedOnly: Bool
     @StateObject private var page = Hold(1)
+    @StateObject private var categoryQuery = Hold("")
     private let pageSize = 10
+    private let categoryListHeight: CGFloat = 240
 
     private var rows: [Listing] { model.results(savedOnly: savedOnly) }
     private var pageCount: Int { max(1, Int(ceil(Double(rows.count) / Double(pageSize)))) }
@@ -13,6 +15,19 @@ struct FindView: View {
     private var slice: [Listing] {
         let start = (safePage - 1) * pageSize
         return Array(rows.dropFirst(start).prefix(pageSize))
+    }
+
+    private var shownCategories: [String] {
+        let query = categoryQuery.value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matched = model.categories.filter { name in
+            query.isEmpty || name.localizedCaseInsensitiveContains(query)
+        }
+        return matched.sorted { a, b in
+            let aSelected = model.selectedCategories.contains(a)
+            let bSelected = model.selectedCategories.contains(b)
+            if aSelected != bSelected { return aSelected }
+            return a.localizedCaseInsensitiveCompare(b) == .orderedAscending
+        }
     }
 
     var body: some View {
@@ -238,16 +253,7 @@ struct FindView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.text)
                 filterGroup("Job category") {
-                    if model.categories.isEmpty {
-                        Text("Refresh to load categories")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.secondary)
-                    }
-                    ForEach(model.categories, id: \.self) { name in
-                        CheckRow(title: name, on: model.selectedCategories.contains(name)) {
-                            model.toggleCategory(name)
-                        }
-                    }
+                    categoryFilters
                 }
                 filterGroup("Location eligibility") {
                     CheckRow(title: "Worldwide", on: model.locationChoice == .worldwide) {
@@ -272,6 +278,58 @@ struct FindView: View {
         }
     }
 
+    @ViewBuilder
+    private var categoryFilters: some View {
+        if model.categories.isEmpty {
+            Text("Refresh to load categories")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.secondary)
+        } else {
+            if model.categories.count > 8 {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.secondary)
+                    TextField("Find a category", text: $categoryQuery.value)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Theme.bg)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            if !model.selectedCategories.isEmpty {
+                Text("\(model.selectedCategories.count) selected")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Theme.primary)
+            }
+            if shownCategories.count > 8 {
+                ScrollView {
+                    categoryRows
+                }
+                .frame(height: categoryListHeight)
+            } else {
+                categoryRows
+            }
+        }
+    }
+
+    private var categoryRows: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if shownCategories.isEmpty {
+                Text("No matching category")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.secondary)
+            }
+            ForEach(shownCategories, id: \.self) { name in
+                CheckRow(title: name, on: model.selectedCategories.contains(name)) {
+                    model.toggleCategory(name)
+                }
+            }
+        }
+    }
+
     private func filterGroup(_ title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
@@ -291,15 +349,23 @@ struct FindView: View {
             Spacer()
             HStack(spacing: 6) {
                 pageButton("chevron.left", enabled: safePage > 1) { page.value = safePage - 1 }
-                ForEach(1...pageCount, id: \.self) { number in
-                    Button("\(number)") { page.value = number }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(number == safePage ? .white : Theme.text)
-                        .frame(width: 28, height: 28)
-                        .background(number == safePage ? Theme.primary : .white)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border))
+                ForEach(Self.pageMarks(current: safePage, count: pageCount)) { mark in
+                    switch mark.kind {
+                    case .number(let number):
+                        Button("\(number)") { page.value = number }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(number == safePage ? .white : Theme.text)
+                            .frame(width: 28, height: 28)
+                            .background(number == safePage ? Theme.primary : .white)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border))
+                    case .gap:
+                        Text("…")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.secondary)
+                            .frame(width: 16, height: 28)
+                    }
                 }
                 pageButton("chevron.right", enabled: safePage < pageCount) { page.value = safePage + 1 }
             }
@@ -318,6 +384,35 @@ struct FindView: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
+    }
+
+    private struct PageMark: Identifiable {
+        enum Kind { case number(Int), gap }
+        let id: String
+        let kind: Kind
+    }
+
+    /// A short window: the ends, the current page and its neighbors, with gaps collapsed.
+    private static func pageMarks(current: Int, count: Int) -> [PageMark] {
+        guard count > 1 else { return [PageMark(id: "1", kind: .number(1))] }
+        let current = min(max(current, 1), count)
+        if count <= 7 {
+            return (1...count).map { PageMark(id: "\($0)", kind: .number($0)) }
+        }
+        var pages: Set<Int> = [1, count, current, current - 1, current + 1]
+        if current <= 4 { pages.formUnion([2, 3, 4, 5]) }
+        if current >= count - 3 { pages.formUnion([count - 4, count - 3, count - 2, count - 1]) }
+        let sorted = pages.filter { (1...count).contains($0) }.sorted()
+        var marks: [PageMark] = []
+        var previous = 0
+        for number in sorted {
+            if previous > 0, number - previous > 1 {
+                marks.append(PageMark(id: "gap-\(previous)", kind: .gap))
+            }
+            marks.append(PageMark(id: "\(number)", kind: .number(number)))
+            previous = number
+        }
+        return marks
     }
 
     private func note(_ text: String, bg: Color, fg: Color) -> some View {
@@ -345,6 +440,7 @@ struct CheckRow: View {
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.text)
                     .multilineTextAlignment(.leading)
+                    .lineLimit(2)
                 Spacer(minLength: 0)
             }
         }
