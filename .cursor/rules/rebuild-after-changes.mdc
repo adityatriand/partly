@@ -1,0 +1,15 @@
+---
+description: Rebuild and reinstall Partly after every app change
+alwaysApply: true
+---
+
+# Rebuild and reinstall after changes
+
+After any change the user can see in Partly, rebuild and replace `/Applications/Partly.app` before finishing. Do not wait to be asked.
+
+- Compile outside the project, in `/tmp`, so `build/` is not left in the repo.
+- Build `PartlyCore` with `-O`. Build the `Partly` app with `-Onone`. Whole-module `-O` has dropped SwiftUI controls from the binary.
+- Quit Partly, copy the new app over `/Applications/Partly.app`, then `xattr -cr` it. Ad-hoc sign the bundle.
+- Bump `CFBundleVersion`.
+- Refresh `~/Desktop/Partly.dmg` as an installer package that replaces `/Applications/Partly.app`. Do not require a drag into Applications.
+- Do not commit or push unless the user asks.
