@@ -28,8 +28,8 @@ enum UpdateError: LocalizedError {
 }
 
 enum AppUpdate {
-    private static let manifest = URL(string: "https://raw.githubusercontent.com/adityatriand/partly/master/dist/latest.json")!
-    private static let diskImage = URL(string: "https://raw.githubusercontent.com/adityatriand/partly/master/dist/Partly.dmg")!
+    private static let manifest = URL(string: "https://raw.githubusercontent.com/adityatriand/partly/update/latest.json")!
+    private static let diskImage = URL(string: "https://raw.githubusercontent.com/adityatriand/partly/update/Partly.dmg")!
 
     static func remote() async throws -> RemoteRelease {
         var request = URLRequest(url: manifest, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
