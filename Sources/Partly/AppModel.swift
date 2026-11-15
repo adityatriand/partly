@@ -116,19 +116,17 @@ final class AppModel: ObservableObject {
     func checkForUpdate() async {
         guard !updating else { return }
         updating = true
-        noteUpdate("Checking the repository for an update…")
+        noteUpdate("Checking Drive for an update…")
         do {
             let remote = try await AppUpdate.remote()
-            let current = Int(Release.build) ?? 0
-            guard remote.asset == "Partly.dmg" else { throw UpdateError.asset }
-            guard remote.build > current else {
+            guard AppUpdate.isNewer(remote.version, than: AppUpdate.currentVersion) else {
                 noteUpdate("You're on the latest version.")
                 updating = false
                 return
             }
-            noteUpdate("Downloading \(remote.version) (\(remote.build))…")
-            let dmg = try await AppUpdate.download()
-            noteUpdate("Installing \(remote.version) (\(remote.build)). Partly will reopen.")
+            noteUpdate("Downloading \(remote.version)…")
+            let dmg = try await AppUpdate.download(fileID: remote.fileID)
+            noteUpdate("Installing \(remote.version). Partly will reopen.")
             try AppUpdate.beginInstall(dmg: dmg)
             NSApp.terminate(nil)
         } catch {

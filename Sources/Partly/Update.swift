@@ -1,10 +1,9 @@
 import AppKit
 import Foundation
 
-struct RemoteRelease: Decodable {
+struct PublishedUpdate {
     let version: String
-    let build: Int
-    let asset: String
+    let fileID: String
 }
 
 enum UpdateError: LocalizedError {
@@ -16,11 +15,11 @@ enum UpdateError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .status(let code):
-            return "The repository replied HTTP \(code)."
+            return "Couldn't check for updates (\(code))."
         case .unreadable:
-            return "Couldn't read the update from the repository."
+            return "Couldn't read the update from Drive."
         case .asset:
-            return "The repository update did not include Partly.dmg."
+            return "An update is published, but there is no installer for this Mac yet."
         case .install:
             return "The update downloaded, but it could not be installed."
         }
@@ -28,33 +27,105 @@ enum UpdateError: LocalizedError {
 }
 
 enum AppUpdate {
-    private static let manifest = URL(string: "https://raw.githubusercontent.com/adityatriand/partly/update/latest.json")!
-    private static let diskImage = URL(string: "https://raw.githubusercontent.com/adityatriand/partly/update/Partly.dmg")!
+    /// Public version.txt in the shared "Partly updates" folder. Publish overwrites this file, so the id stays put.
+    private static let versionFileID = "1we_7HRlTkBf93zImrPo9_0w4Pve1uRS1"
 
-    static func remote() async throws -> RemoteRelease {
-        var request = URLRequest(url: manifest, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
-        request.setValue("Partly/\(Release.version)", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200..<300).contains(code) else { throw UpdateError.status(code) }
-        guard let release = try? JSONDecoder().decode(RemoteRelease.self, from: data) else {
-            throw UpdateError.unreadable
-        }
-        return release
+    private static var assetKey: String {
+        #if arch(arm64)
+        "macos-aarch64"
+        #elseif arch(x86_64)
+        "macos-x64"
+        #else
+        "macos-aarch64"
+        #endif
     }
 
-    static func download() async throws -> URL {
-        var request = URLRequest(url: diskImage, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 120)
-        request.setValue("Partly/\(Release.version)", forHTTPHeaderField: "User-Agent")
-        let (temp, response) = try await URLSession.shared.download(for: request)
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200..<300).contains(code) else { throw UpdateError.status(code) }
+    static var currentVersion: String { "\(Release.version).\(Release.build)" }
+
+    static func remote() async throws -> PublishedUpdate {
+        let data = try await bytes(from: driveDownloadURL(versionFileID))
+        guard let text = String(data: data, encoding: .utf8) else { throw UpdateError.unreadable }
+        let (version, files) = parsePublished(text)
+        guard let fileID = files[assetKey] else { throw UpdateError.asset }
+        return PublishedUpdate(version: version, fileID: fileID)
+    }
+
+    static func download(fileID: String) async throws -> URL {
+        let data = try await bytes(from: driveDownloadURL(fileID))
         let dest = FileManager.default.temporaryDirectory.appendingPathComponent("Partly-update.dmg")
         if FileManager.default.fileExists(atPath: dest.path) {
             try FileManager.default.removeItem(at: dest)
         }
-        try FileManager.default.moveItem(at: temp, to: dest)
+        try data.write(to: dest)
         return dest
+    }
+
+    static func isNewer(_ latest: String, than current: String) -> Bool {
+        guard let theirs = parseVersion(latest), let mine = parseVersion(current) else { return false }
+        return theirs > mine
+    }
+
+    private static func driveDownloadURL(_ id: String) -> URL {
+        URL(string: "https://drive.usercontent.google.com/download?id=\(id)&export=download&confirm=t")!
+    }
+
+    /// First line is the version. Later lines are `macos-aarch64=<file id>`.
+    private static func parsePublished(_ text: String) -> (String, [String: String]) {
+        let lines = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let version = lines.first ?? ""
+        var files: [String: String] = [:]
+        for line in lines.dropFirst() {
+            guard let split = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).first,
+                  let value = line.split(separator: "=", maxSplits: 1).dropFirst().first else { continue }
+            let name = split.trimmingCharacters(in: .whitespaces)
+            let id = value.trimmingCharacters(in: .whitespaces)
+            if !name.isEmpty, !id.isEmpty { files[name] = id }
+        }
+        return (version, files)
+    }
+
+    private static func parseVersion(_ raw: String) -> (Int, Int, Int)? {
+        let parts = raw.trimmingCharacters(in: .whitespacesAndNewlines).drop { $0 == "v" }.split(separator: ".")
+        guard parts.count >= 3,
+              let major = Int(parts[0]),
+              let minor = Int(parts[1]),
+              let patch = Int(parts[2]) else { return nil }
+        return (major, minor, patch)
+    }
+
+    private static func bytes(from url: URL) async throws -> Data {
+        var current = url
+        for _ in 0..<3 {
+            var request = URLRequest(url: current, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 120)
+            request.setValue("Partly", forHTTPHeaderField: "User-Agent")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard (200..<300).contains(code) else { throw UpdateError.status(code) }
+            if let confirm = confirmURL(in: data) {
+                current = confirm
+                continue
+            }
+            return data
+        }
+        throw UpdateError.unreadable
+    }
+
+    private static func confirmURL(in data: Data) -> URL? {
+        let head = data.prefix(64)
+        guard let preview = String(data: head, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() else { return nil }
+        guard preview.hasPrefix("<!doctype html") || preview.hasPrefix("<html") else { return nil }
+        guard let text = String(data: data, encoding: .utf8) else { return nil }
+        let marker = "https://drive.usercontent.google.com/download"
+        guard let start = text.range(of: marker) else { return nil }
+        let rest = text[start.lowerBound...]
+        let end = rest.firstIndex(of: "\"") ?? rest.endIndex
+        var url = rest[..<end].replacingOccurrences(of: "&amp;", with: "&")
+        if !url.contains("confirm=") {
+            url += url.contains("?") ? "&confirm=t" : "?confirm=t"
+        }
+        return URL(string: String(url))
     }
 
     /// Replaces `/Applications/Partly.app` after this process quits, then clears quarantine.
