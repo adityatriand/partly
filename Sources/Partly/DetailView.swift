@@ -18,9 +18,10 @@ struct DetailView: View {
         }
         .frame(width: 720, height: 640)
         .background(theme.bg)
-        .colorScheme(theme.scheme)
         .sheet(isPresented: $model.showReport) {
             ReportSheet()
+                .environmentObject(model)
+                .sheetTheme(theme)
         }
     }
 
@@ -51,6 +52,7 @@ struct DetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(20)
             }
+            .scrollContentBackground(.hidden)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             HStack {
@@ -92,6 +94,7 @@ struct DetailView: View {
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .scrollContentBackground(.hidden)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             footer(job)
         }
@@ -317,6 +320,5 @@ struct ReportSheet: View {
         .padding(20)
         .frame(width: 440)
         .background(theme.bg)
-        .colorScheme(theme.scheme)
     }
 }

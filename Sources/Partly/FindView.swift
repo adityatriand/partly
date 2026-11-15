@@ -207,12 +207,6 @@ struct FindView: View {
                 .buttonStyle(PrimaryButton(corner: 12))
             }
             HStack(spacing: 8) {
-                pillMenu(icon: "mappin.and.ellipse", value: model.locationChoice.rawValue, options: Array(AppModel.LocationChoice.allCases), label: \.rawValue) {
-                    model.locationChoice = $0
-                }
-                pillMenu(icon: "square.grid.2x2", value: model.categoryPick, options: ["All categories"] + model.categories, label: { $0 }) {
-                    model.chooseCategory($0)
-                }
                 pillMenu(icon: "arrow.up.arrow.down", value: model.sort.rawValue, options: Array(AppModel.Sort.allCases), label: \.rawValue) {
                     model.sort = $0
                 }

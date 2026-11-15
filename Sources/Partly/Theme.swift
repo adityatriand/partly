@@ -89,6 +89,45 @@ extension EnvironmentValues {
     }
 }
 
+extension View {
+    /// Sheets are their own windows and otherwise keep a light surface.
+    func sheetTheme(_ theme: Theme) -> some View {
+        environment(\.theme, theme)
+            .preferredColorScheme(theme.scheme)
+            .background(theme.bg)
+            .presentationBackground(theme.bg)
+            .background(WindowAppearance(dark: theme.dark))
+    }
+}
+
+private struct WindowAppearance: NSViewRepresentable {
+    var dark: Bool
+
+    func makeNSView(context: Context) -> AppearanceView {
+        let view = AppearanceView()
+        view.dark = dark
+        return view
+    }
+
+    func updateNSView(_ view: AppearanceView, context: Context) {
+        view.dark = dark
+        view.apply()
+    }
+
+    final class AppearanceView: NSView {
+        var dark = false
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            apply()
+        }
+
+        func apply() {
+            window?.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        }
+    }
+}
+
 struct PrimaryButton: ButtonStyle {
     var corner: CGFloat = Theme.controlRadius
     @Environment(\.isEnabled) private var isEnabled

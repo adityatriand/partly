@@ -27,9 +27,13 @@ struct RootView: View {
         }
         .sheet(item: $model.selected) { _ in
             DetailView()
+                .environmentObject(model)
+                .sheetTheme(theme)
         }
         .sheet(isPresented: $model.showAbout) {
             AboutView()
+                .environmentObject(model)
+                .sheetTheme(theme)
         }
     }
 
@@ -114,7 +118,6 @@ struct AboutView: View {
         .padding(24)
         .frame(width: 460)
         .background(theme.bg)
-        .colorScheme(theme.scheme)
     }
 }
 

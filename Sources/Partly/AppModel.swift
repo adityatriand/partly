@@ -79,7 +79,6 @@ final class AppModel: ObservableObject {
     @Published var jobs: [Listing] = []
     @Published var query = ""
     @Published var locationChoice: LocationChoice = .any
-    @Published var categoryPick = "All categories"
     @Published var selectedCategories: Set<String> = []
     @Published var posted: Posted = .any
     @Published var chip: Chip = .all
@@ -261,18 +260,12 @@ final class AppModel: ObservableObject {
         selected = nil
     }
 
-    func chooseCategory(_ name: String) {
-        categoryPick = name
-        selectedCategories = name == "All categories" ? [] : [name]
-    }
-
     func toggleCategory(_ name: String) {
         if selectedCategories.contains(name) {
             selectedCategories.remove(name)
         } else {
             selectedCategories.insert(name)
         }
-        categoryPick = selectedCategories.count == 1 ? (selectedCategories.first ?? "All categories") : "All categories"
     }
 
     func chooseLocation(_ choice: LocationChoice) {
@@ -286,7 +279,6 @@ final class AppModel: ObservableObject {
     func clearFilters() {
         query = ""
         locationChoice = .any
-        categoryPick = "All categories"
         selectedCategories = []
         posted = .any
         chip = .all
