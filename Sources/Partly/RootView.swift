@@ -12,11 +12,7 @@ struct RootView: View {
             Group {
                 switch model.screen {
                 case .find:
-                    FindView(savedOnly: false)
-                case .saved:
-                    FindView(savedOnly: true)
-                case .about:
-                    AboutView()
+                    FindView()
                 case .detail:
                     DetailView()
                 }
@@ -30,100 +26,89 @@ struct RootView: View {
         .sheet(isPresented: $model.showReport) {
             ReportSheet()
         }
+        .sheet(isPresented: $model.showAbout) {
+            AboutView()
+        }
     }
 
     private var topBar: some View {
-        HStack(spacing: 24) {
-            HStack(spacing: 8) {
+        HStack(spacing: 12) {
+            Button { model.showFind() } label: {
                 BrandLockup(height: 28)
             }
-            Spacer()
-            HStack(spacing: 6) {
-                nav("Find jobs", screen: .find) { model.showFind() }
-                nav("Saved jobs", screen: .saved) { model.showSaved() }
-                nav("About", screen: .about) { model.screen = .about }
+            .buttonStyle(PlainActionButton())
+            .accessibilityLabel("Partly, back to jobs")
+            Spacer(minLength: 0)
+            Button { model.showAbout = true } label: {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Theme.secondary)
+                    .frame(width: 28, height: 28)
             }
-            Spacer()
-            profile
+            .buttonStyle(PlainActionButton())
+            .accessibilityLabel("About")
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
         .background(.white)
     }
-
-    private func nav(_ title: String, screen: AppModel.Screen, action: @escaping () -> Void) -> some View {
-        let on = model.screen == screen || (screen == .find && model.screen == .detail)
-        return Button(action: action) {
-            Text(title)
-                .font(.system(size: 14, weight: on ? .semibold : .regular))
-                .foregroundStyle(on ? Theme.primary : Theme.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(on ? Theme.primaryLight : .clear)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var profile: some View {
-        Menu {
-            Text("Jobs stay on this Mac. No account.")
-        } label: {
-            Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 22))
-                .foregroundStyle(Theme.primary)
-                .frame(width: 32, height: 32)
-        }
-        .menuStyle(.borderlessButton)
-        .frame(width: 36)
-        .accessibilityLabel("Local profile")
-    }
 }
 
 struct AboutView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                BrandLockup(height: 32)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
                 Text("About")
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(Theme.text)
-                Text("Partly keeps your job list on this Mac. Nothing in the local database is uploaded.")
-                    .foregroundStyle(Theme.secondary)
-                Card {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Source")
-                            .font(.system(size: 16, weight: .semibold))
-                        Text("Listings come from public feeds that allow reuse: Remotive, Jobicy, Remote OK, Arbeitnow, Himalayas, and RemoteJobs.org. Each job opens that source's own page. Only remote part-time listings are stored.")
-                            .foregroundStyle(Theme.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Link("Remotive", destination: Remotive.site)
-                        Link("Jobicy", destination: Jobicy.site)
-                        Link("Remote OK", destination: RemoteOK.site)
-                        Link("Arbeitnow", destination: Arbeitnow.site)
-                        Link("Himalayas", destination: Himalayas.site)
-                        Link("RemoteJobs.org", destination: RemoteJobs.site)
-                        Text("Refresh re-fetches those feeds and updates the list on this Mac. A new fetch is refused for 60 seconds. A source that fails does not delete the other jobs or mark old rows as just verified.")
-                            .foregroundStyle(Theme.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        HStack(spacing: 8) {
-                            Button(model.refreshing ? "Refreshing…" : "Refresh") { Task { await model.refresh() } }
-                                .buttonStyle(PrimaryButton())
-                                .disabled(model.refreshing)
-                        }
-                        Text("Reports stay pending on this Mac. There is no submission service.")
-                            .foregroundStyle(Theme.secondary)
-                    }
-                    .padding(20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.secondary)
+                        .frame(width: 28, height: 28)
+                        .background(Theme.bg)
+                        .clipShape(Circle())
                 }
+                .buttonStyle(PlainActionButton())
+                .accessibilityLabel("Close")
             }
-            .padding(32)
-            .frame(maxWidth: 720, alignment: .leading)
-            .frame(maxWidth: .infinity)
+            Text("Partly keeps your job list on this Mac. Nothing in the local database is uploaded.")
+                .foregroundStyle(Theme.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Listings come from public feeds that allow reuse. Each job opens that source's own page. Only remote part-time listings are stored.")
+                .foregroundStyle(Theme.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Link("Remotive", destination: Remotive.site).actionCursor()
+                Link("Jobicy", destination: Jobicy.site).actionCursor()
+                Link("Remote OK", destination: RemoteOK.site).actionCursor()
+                Link("Arbeitnow", destination: Arbeitnow.site).actionCursor()
+                Link("Himalayas", destination: Himalayas.site).actionCursor()
+                Link("RemoteJobs.org", destination: RemoteJobs.site).actionCursor()
+            }
+            Text("Refresh re-fetches those feeds. A new fetch is refused for 60 seconds. A source that fails does not delete the other jobs.")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Reports stay pending on this Mac. There is no submission service.")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.secondary)
+            HStack {
+                Spacer()
+                Button(model.refreshing ? "Refreshing…" : "Refresh") { Task { await model.refresh() } }
+                    .buttonStyle(PrimaryButton())
+                    .disabled(model.refreshing)
+                Button("Done") { dismiss() }
+                    .buttonStyle(QuietButton())
+            }
         }
+        .padding(24)
+        .frame(width: 460)
+        .background(Theme.bg)
     }
 }
 
@@ -133,8 +118,14 @@ func openExternal(_ raw: String) {
 }
 
 enum Brand {
+    @MainActor
     static func applyIcon() {
-        guard let url = BrandFile.url("AppIcon"), let image = NSImage(contentsOf: url) else { return }
+        // The packaged app already has AppIcon.icns. The PNG is 512px at 72 dpi,
+        // so assigning it here makes the Dock draw a 512-point icon and the tile zooms up.
+        if Bundle.main.url(forResource: "AppIcon", withExtension: "icns") != nil { return }
+        guard let url = BrandFile.url("AppIcon"),
+              let image = NSImage(contentsOf: url)?.copy() as? NSImage else { return }
+        image.size = NSSize(width: 128, height: 128)
         NSApplication.shared.applicationIconImage = image
     }
 }

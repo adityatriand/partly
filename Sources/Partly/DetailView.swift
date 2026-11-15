@@ -45,7 +45,7 @@ struct DetailView: View {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Theme.secondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PlainActionButton())
 
                 Card {
                     VStack(alignment: .leading, spacing: 14) {
@@ -71,14 +71,8 @@ struct DetailView: View {
                         }
                         .font(.system(size: 13))
                         .foregroundStyle(Theme.secondary)
-                        HStack(spacing: 10) {
-                            Button("Go to application") { openExternal(job.applicationURL) }
-                                .buttonStyle(PrimaryButton())
-                            Button(action: { model.toggleSave(job) }) {
-                                Label(job.saved ? "Saved" : "Save", systemImage: job.saved ? "heart.fill" : "heart")
-                            }
-                            .buttonStyle(QuietButton())
-                        }
+                        Button("Go to application") { openExternal(job.applicationURL) }
+                            .buttonStyle(PrimaryButton())
                     }
                     .padding(20)
                 }
@@ -90,6 +84,7 @@ struct DetailView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 320)
+                .actionCursor()
 
                 Card {
                     VStack(alignment: .leading, spacing: 18) {
@@ -162,7 +157,7 @@ struct DetailView: View {
             Text("Application link")
                 .font(.system(size: 13, weight: .semibold))
             Button(job.applicationURL) { openExternal(job.applicationURL) }
-                .buttonStyle(.plain)
+                .buttonStyle(PlainActionButton())
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.primary)
                 .lineLimit(1)
@@ -174,7 +169,7 @@ struct DetailView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.secondary)
             Button("Report a problem") { model.showReport = true }
-                .buttonStyle(.plain)
+                .buttonStyle(PlainActionButton())
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Theme.secondary)
                 .padding(.top, 4)
@@ -222,7 +217,7 @@ struct ReportSheet: View {
                     Image(systemName: "xmark")
                         .foregroundStyle(Theme.secondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PlainActionButton())
                 .accessibilityLabel("Close")
             }
             Text("Help keep the local list accurate. Why are you reporting this listing? The report stays on this Mac.")
@@ -239,7 +234,7 @@ struct ReportSheet: View {
                         Spacer()
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PlainActionButton())
             }
             Text("Additional details (optional)")
                 .font(.system(size: 12))

@@ -27,7 +27,7 @@ enum SourceClient {
 
 @MainActor
 final class AppModel: ObservableObject {
-    enum Screen: Equatable { case find, saved, about, detail }
+    enum Screen: Equatable { case find, detail }
 
     enum LocationChoice: String, CaseIterable, Identifiable {
         case any = "Any location"
@@ -89,13 +89,13 @@ final class AppModel: ObservableObject {
     @Published var sort: Sort = .newest
     @Published var selected: Listing?
     @Published var showReport = false
+    @Published var showAbout = false
     @Published var refreshing = false
     @Published var banner: String?
     @Published var lastSuccess: Date?
     @Published var lastError: String?
     @Published var bootError: String?
     private var lastAttempt: Date?
-    private var returnScreen: Screen = .find
     private var store: JobStore?
     private var started = false
 
@@ -118,10 +118,9 @@ final class AppModel: ObservableObject {
         return "Couldn't refresh (\(lastError)). Showing saved listings from \(freshness.lowercased()). They were not re-verified."
     }
 
-    func results(savedOnly: Bool) -> [Listing] {
+    func results() -> [Listing] {
         let now = Date()
         let rows = jobs.filter { job in
-            if savedOnly && !job.saved { return false }
             if !query.isEmpty {
                 let blob = "\(job.title) \(job.company) \(job.summary) \(job.category)".lowercased()
                 if !blob.contains(query.lowercased()) { return false }
@@ -207,16 +206,6 @@ final class AppModel: ObservableObject {
         banner = (lines + errors).joined(separator: " · ")
     }
 
-    func toggleSave(_ job: Listing) {
-        guard let store else { return }
-        do {
-            try store.setSaved(id: job.id, saved: !job.saved)
-            apply(try store.snapshot())
-        } catch {
-            banner = error.localizedDescription
-        }
-    }
-
     func submitReport(reason: ReportReason, details: String) {
         guard let store, let selected else { return }
         do {
@@ -236,21 +225,16 @@ final class AppModel: ObservableObject {
     }
 
     func open(_ job: Listing) {
-        returnScreen = screen == .detail ? returnScreen : screen
         selected = job
         screen = .detail
     }
 
     func back() {
-        screen = returnScreen == .detail ? .find : returnScreen
+        screen = .find
     }
 
     func showFind() {
         screen = .find
-    }
-
-    func showSaved() {
-        screen = .saved
     }
 
     func chooseCategory(_ name: String) {

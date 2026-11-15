@@ -3,13 +3,13 @@ import SwiftUI
 
 struct FindView: View {
     @EnvironmentObject private var model: AppModel
-    let savedOnly: Bool
     @StateObject private var page = Hold(1)
     @StateObject private var categoryQuery = Hold("")
+    @StateObject private var search = DebouncedSearch()
     private let pageSize = 10
     private let categoryListHeight: CGFloat = 240
 
-    private var rows: [Listing] { model.results(savedOnly: savedOnly) }
+    private var rows: [Listing] { model.results() }
     private var pageCount: Int { max(1, Int(ceil(Double(rows.count) / Double(pageSize)))) }
     private var safePage: Int { min(max(page.value, 1), pageCount) }
     private var slice: [Listing] {
@@ -58,17 +58,6 @@ struct FindView: View {
                     secondary: "Back to home",
                     secondaryAction: { model.showFind() }
                 )
-            } else if savedOnly && model.jobs.allSatisfy({ !$0.saved }) {
-                StatusPage(
-                    symbol: "heart",
-                    tint: Theme.primary,
-                    title: "No saved jobs",
-                    message: "Save a listing from the results and it will stay on this Mac.",
-                    primary: "Browse all jobs",
-                    primaryAction: { model.showFind() },
-                    secondary: nil,
-                    secondaryAction: nil
-                )
             } else if !model.jobs.isEmpty && rows.isEmpty {
                 StatusPage(
                     symbol: "magnifyingglass",
@@ -95,8 +84,9 @@ struct FindView: View {
                 list
             }
         }
+        .onAppear { search.adopt(model.query) }
+        .onChange(of: model.query) { _, newValue in search.adopt(newValue) }
         .onChange(of: model.filterToken) { _, _ in page.value = 1 }
-        .onChange(of: savedOnly) { _, _ in page.value = 1 }
     }
 
     private var list: some View {
@@ -111,7 +101,7 @@ struct FindView: View {
 
     private var listBody: some View {
         VStack(alignment: .leading, spacing: 16) {
-                if !savedOnly { hero }
+                hero
                 searchRow
                 chips
                 if let banner = model.banner {
@@ -170,33 +160,39 @@ struct FindView: View {
     }
 
     private var searchRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             field(icon: "magnifyingglass") {
-                TextField("Job title, keyword, or company", text: $model.query)
-                    .textFieldStyle(.plain)
+                TextField("Job title, keyword, or company", text: Binding(
+                    get: { search.text },
+                    set: { search.edit($0) { model.query = $0 } }
+                ))
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.text)
             }
+            .frame(width: 320)
             field(icon: "mappin.and.ellipse") {
-                Picker("Location", selection: $model.locationChoice) {
-                    ForEach(AppModel.LocationChoice.allCases) { choice in
-                        Text(choice.rawValue).tag(choice)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 180)
+                FilterMenu(
+                    value: model.locationChoice.rawValue,
+                    options: Array(AppModel.LocationChoice.allCases),
+                    label: \.rawValue
+                ) { model.locationChoice = $0 }
             }
+            .frame(width: 180)
             field(icon: "square.grid.2x2") {
-                Picker("Category", selection: Binding(
-                    get: { model.categoryPick },
-                    set: { model.chooseCategory($0) }
-                )) {
-                    Text("All categories").tag("All categories")
-                    ForEach(model.categories, id: \.self) { Text($0).tag($0) }
-                }
-                .labelsHidden()
-                .frame(width: 160)
+                FilterMenu(
+                    value: model.categoryPick,
+                    options: ["All categories"] + model.categories,
+                    label: { $0 }
+                ) { model.chooseCategory($0) }
             }
-            Button("Search") { Task { await model.searchTapped() } }
-                .buttonStyle(PrimaryButton())
+            .frame(width: 168)
+            Button("Search") {
+                search.commitNow { model.query = $0 }
+                Task { await model.searchTapped() }
+            }
+            .buttonStyle(PrimaryButton())
+            Spacer(minLength: 0)
         }
     }
 
@@ -217,7 +213,7 @@ struct FindView: View {
             ForEach(AppModel.Chip.allCases) { chip in
                 let on = model.chip == chip
                 Button(chip.rawValue) { model.chip = chip }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PlainActionButton())
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(on ? Theme.primary : Theme.secondary)
                     .padding(.horizontal, 12)
@@ -226,17 +222,21 @@ struct FindView: View {
                     .clipShape(Capsule())
                     .overlay(Capsule().stroke(on ? Theme.primary.opacity(0.3) : Theme.border))
             }
-            Spacer()
-            HStack(spacing: 6) {
+            Spacer(minLength: 12)
+            HStack(spacing: 8) {
                 Text("Sort by")
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.secondary)
-                Picker("Sort", selection: $model.sort) {
-                    ForEach(AppModel.Sort.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .labelsHidden()
-                .frame(width: 130)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: true)
+                FilterMenu(
+                    value: model.sort.rawValue,
+                    options: Array(AppModel.Sort.allCases),
+                    label: \.rawValue
+                ) { model.sort = $0 }
+                    .frame(width: 130)
             }
+            .fixedSize(horizontal: true, vertical: false)
             Button(model.refreshing ? "Refreshing…" : "Refresh") { Task { await model.refresh() } }
                 .buttonStyle(QuietButton())
                 .disabled(model.refreshing)
@@ -353,7 +353,7 @@ struct FindView: View {
                     switch mark.kind {
                     case .number(let number):
                         Button("\(number)") { page.value = number }
-                            .buttonStyle(.plain)
+                            .buttonStyle(PlainActionButton())
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(number == safePage ? .white : Theme.text)
                             .frame(width: 28, height: 28)
@@ -382,7 +382,7 @@ struct FindView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlainActionButton())
         .disabled(!enabled)
     }
 
@@ -426,6 +426,68 @@ struct FindView: View {
     }
 }
 
+@MainActor
+final class DebouncedSearch: ObservableObject {
+    @Published var text = ""
+    private var pending: Task<Void, Never>?
+
+    func edit(_ next: String, commit: @escaping (String) -> Void) {
+        text = next
+        pending?.cancel()
+        pending = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            commit(next)
+        }
+    }
+
+    func commitNow(_ commit: (String) -> Void) {
+        pending?.cancel()
+        pending = nil
+        commit(text)
+    }
+
+    func adopt(_ value: String) {
+        guard text != value else { return }
+        pending?.cancel()
+        pending = nil
+        text = value
+    }
+}
+
+struct FilterMenu<Item: Hashable>: View {
+    let value: String
+    let options: [Item]
+    let label: (Item) -> String
+    let select: (Item) -> Void
+
+    var body: some View {
+        Menu {
+            ForEach(options, id: \.self) { item in
+                Button(label(item)) { select(item) }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(value)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Theme.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .foregroundStyle(Theme.text)
+        .tint(Theme.text)
+        .colorScheme(.light)
+        .actionCursor()
+    }
+}
+
 struct CheckRow: View {
     let title: String
     let on: Bool
@@ -444,7 +506,7 @@ struct CheckRow: View {
                 Spacer(minLength: 0)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlainActionButton())
     }
 }
 
@@ -454,46 +516,44 @@ struct JobCard: View {
 
     var body: some View {
         Card {
-            HStack(alignment: .top, spacing: 14) {
-                InitialsMark(name: job.company)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(job.title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Theme.text)
-                        .lineLimit(2)
-                    Text(job.company)
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.secondary)
-                    HStack(spacing: 6) {
-                        Badge(title: "Remote", fg: Theme.remoteFg, bg: Theme.remoteBg)
-                        Badge(title: "Part-time", fg: Theme.primary, bg: Theme.primaryLight)
-                        if !job.isAvailable {
-                            Badge(title: "Expired", fg: Theme.danger, bg: Theme.dangerBg)
-                        }
-                    }
-                    HStack(spacing: 14) {
-                        meta("mappin.and.ellipse", job.location)
-                        meta("clock", "Last verified \(relative(job.lastVerified))")
-                        meta("link", job.sourceName)
-                    }
-                    if !job.summary.isEmpty {
-                        Text(job.summary)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 14) {
+                    InitialsMark(name: job.company)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(job.title)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Theme.text)
+                            .lineLimit(2)
+                        Text(job.company)
                             .font(.system(size: 13))
                             .foregroundStyle(Theme.secondary)
-                            .lineLimit(2)
-                            .truncationMode(.tail)
+                        HStack(spacing: 6) {
+                            Badge(title: "Remote", fg: Theme.remoteFg, bg: Theme.remoteBg)
+                            Badge(title: "Part-time", fg: Theme.primary, bg: Theme.primaryLight)
+                            if !job.isAvailable {
+                                Badge(title: "Expired", fg: Theme.danger, bg: Theme.dangerBg)
+                            }
+                        }
+                        HStack(spacing: 14) {
+                            meta("mappin.and.ellipse", job.location)
+                            meta("clock", "Last verified \(relative(job.lastVerified))")
+                            meta("link", job.sourceName)
+                        }
+                        if !job.summary.isEmpty {
+                            Text(job.summary)
+                                .font(.system(size: 13))
+                                .foregroundStyle(Theme.secondary)
+                                .lineLimit(2)
+                                .truncationMode(.tail)
+                        }
                     }
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
                     Button("View details") { model.open(job) }
                         .buttonStyle(PrimaryButton())
-                    Button(action: { model.toggleSave(job) }) {
-                        Label(job.saved ? "Saved" : "Save", systemImage: job.saved ? "heart.fill" : "heart")
-                    }
-                    .buttonStyle(QuietButton())
                 }
-                .fixedSize(horizontal: true, vertical: false)
             }
             .padding(16)
         }

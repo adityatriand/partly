@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // shortcut: CLT has no SwiftUIMacros, so @State will not compile. Use @State once Xcode is installed.
@@ -27,6 +28,8 @@ enum Theme {
 }
 
 struct PrimaryButton: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 14, weight: .semibold))
@@ -35,10 +38,13 @@ struct PrimaryButton: ButtonStyle {
             .padding(.vertical, 9)
             .background(configuration.isPressed ? Theme.primaryPressed : Theme.primary)
             .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
+            .actionCursor(enabled: isEnabled)
     }
 }
 
 struct QuietButton: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 14, weight: .semibold))
@@ -47,6 +53,29 @@ struct QuietButton: ButtonStyle {
             .padding(.vertical, 9)
             .background(Theme.primaryLight.opacity(configuration.isPressed ? 0.7 : 1))
             .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
+            .actionCursor(enabled: isEnabled)
+    }
+}
+
+struct PlainActionButton: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .actionCursor(enabled: isEnabled)
+    }
+}
+
+extension View {
+    /// Pointing-hand cursor while the pointer is over a control that takes an action.
+    func actionCursor(enabled: Bool = true) -> some View {
+        onHover { hovering in
+            if hovering && enabled {
+                NSCursor.pointingHand.set()
+            } else if !hovering {
+                NSCursor.arrow.set()
+            }
+        }
     }
 }
 
