@@ -91,34 +91,52 @@ struct FindView: View {
 
     private var list: some View {
         GeometryReader { geo in
+            let contentWidth = max(0, geo.size.width - 48)
             ScrollView {
-                listBody
+                listBody(contentWidth: contentWidth)
                     .padding(24)
                     .frame(width: geo.size.width, alignment: .topLeading)
             }
         }
     }
 
-    private var listBody: some View {
-        VStack(alignment: .leading, spacing: 16) {
-                hero
-                searchRow
-                chips
-                if let banner = model.banner {
-                    note(banner, bg: Theme.primaryLight, fg: Theme.primary)
-                } else if let stale = model.staleNote {
-                    note(stale, bg: Theme.warningBg, fg: Color(red: 0.57, green: 0.25, blue: 0.05))
+    private func listBody(contentWidth: CGFloat) -> some View {
+        let resultsWidth = max(0, contentWidth - 220 - 16)
+        return VStack(alignment: .leading, spacing: 16) {
+            hero
+            toolbar
+            if let banner = model.banner {
+                note(banner, bg: Theme.primaryLight, fg: Theme.primary)
+            } else if let stale = model.staleNote {
+                note(stale, bg: Theme.warningBg, fg: Color(red: 0.57, green: 0.25, blue: 0.05))
+            }
+            HStack(alignment: .top, spacing: 16) {
+                filters
+                VStack(alignment: .leading, spacing: 12) {
+                    jobGrid(width: resultsWidth)
+                    footer
                 }
-                HStack(alignment: .top, spacing: 16) {
-                    filters
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(slice) { job in
-                            JobCard(job: job)
-                        }
-                        footer
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func columnCount(for width: CGFloat) -> Int {
+        let minimumCard: CGFloat = 220
+        let spacing: CGFloat = 12
+        let fitted = Int((width + spacing) / (minimumCard + spacing))
+        return min(5, max(1, fitted))
+    }
+
+    private func jobGrid(width: CGFloat) -> some View {
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: 12, alignment: .top),
+            count: columnCount(for: width)
+        )
+        return LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+            ForEach(slice) { job in
+                JobCard(job: job)
+            }
         }
     }
 
@@ -159,40 +177,58 @@ struct FindView: View {
         }
     }
 
-    private var searchRow: some View {
-        HStack(spacing: 8) {
-            field(icon: "magnifyingglass") {
-                TextField("Job title, keyword, or company", text: Binding(
-                    get: { search.text },
-                    set: { search.edit($0) { model.query = $0 } }
-                ))
-                .textFieldStyle(.plain)
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.text)
+    private var toolbar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                field(icon: "magnifyingglass") {
+                    TextField("Job title, keyword, or company", text: Binding(
+                        get: { search.text },
+                        set: { search.edit($0) { model.query = $0 } }
+                    ))
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.text)
+                }
+                .frame(maxWidth: .infinity)
+                Button("Search") {
+                    search.commitNow { model.query = $0 }
+                    Task { await model.searchTapped() }
+                }
+                .buttonStyle(PrimaryButton())
             }
-            .frame(width: 320)
-            field(icon: "mappin.and.ellipse") {
-                FilterMenu(
-                    value: model.locationChoice.rawValue,
-                    options: Array(AppModel.LocationChoice.allCases),
-                    label: \.rawValue
-                ) { model.locationChoice = $0 }
+            HStack(spacing: 8) {
+                field(icon: "mappin.and.ellipse") {
+                    FilterMenu(
+                        value: model.locationChoice.rawValue,
+                        options: Array(AppModel.LocationChoice.allCases),
+                        label: \.rawValue
+                    ) { model.locationChoice = $0 }
+                }
+                .frame(maxWidth: .infinity)
+                field(icon: "square.grid.2x2") {
+                    FilterMenu(
+                        value: model.categoryPick,
+                        options: ["All categories"] + model.categories,
+                        label: { $0 }
+                    ) { model.chooseCategory($0) }
+                }
+                .frame(maxWidth: .infinity)
+                field(icon: "arrow.up.arrow.down") {
+                    FilterMenu(
+                        value: model.sort.rawValue,
+                        options: Array(AppModel.Sort.allCases),
+                        label: \.rawValue
+                    ) { model.sort = $0 }
+                }
+                .frame(maxWidth: .infinity)
+                Button(model.refreshing ? "Refreshing…" : "Refresh") { Task { await model.refresh() } }
+                    .buttonStyle(QuietButton())
+                    .disabled(model.refreshing)
             }
-            .frame(width: 180)
-            field(icon: "square.grid.2x2") {
-                FilterMenu(
-                    value: model.categoryPick,
-                    options: ["All categories"] + model.categories,
-                    label: { $0 }
-                ) { model.chooseCategory($0) }
-            }
-            .frame(width: 168)
-            Button("Search") {
-                search.commitNow { model.query = $0 }
-                Task { await model.searchTapped() }
-            }
-            .buttonStyle(PrimaryButton())
-            Spacer(minLength: 0)
+            Text(model.freshness)
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.secondary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 
@@ -206,44 +242,6 @@ struct FindView: View {
         .background(.white)
         .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
         .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius).stroke(Theme.border))
-    }
-
-    private var chips: some View {
-        HStack(spacing: 8) {
-            ForEach(AppModel.Chip.allCases) { chip in
-                let on = model.chip == chip
-                Button(chip.rawValue) { model.chip = chip }
-                    .buttonStyle(PlainActionButton())
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(on ? Theme.primary : Theme.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(on ? Theme.primaryLight : .white)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(on ? Theme.primary.opacity(0.3) : Theme.border))
-            }
-            Spacer(minLength: 12)
-            HStack(spacing: 8) {
-                Text("Sort by")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.secondary)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: true)
-                FilterMenu(
-                    value: model.sort.rawValue,
-                    options: Array(AppModel.Sort.allCases),
-                    label: \.rawValue
-                ) { model.sort = $0 }
-                    .frame(width: 130)
-            }
-            .fixedSize(horizontal: true, vertical: false)
-            Button(model.refreshing ? "Refreshing…" : "Refresh") { Task { await model.refresh() } }
-                .buttonStyle(QuietButton())
-                .disabled(model.refreshing)
-            Text(model.freshness)
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.secondary)
-        }
     }
 
     private var filters: some View {
@@ -516,46 +514,44 @@ struct JobCard: View {
 
     var body: some View {
         Card {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 14) {
-                    InitialsMark(name: job.company)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(job.title)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Theme.text)
-                            .lineLimit(2)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center, spacing: 10) {
+                    InitialsMark(name: job.company, size: 36)
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(job.company)
-                            .font(.system(size: 13))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.text)
+                            .lineLimit(1)
+                        Text(job.sourceName)
+                            .font(.system(size: 12))
                             .foregroundStyle(Theme.secondary)
-                        HStack(spacing: 6) {
-                            Badge(title: "Remote", fg: Theme.remoteFg, bg: Theme.remoteBg)
-                            Badge(title: "Part-time", fg: Theme.primary, bg: Theme.primaryLight)
-                            if !job.isAvailable {
-                                Badge(title: "Expired", fg: Theme.danger, bg: Theme.dangerBg)
-                            }
-                        }
-                        HStack(spacing: 14) {
-                            meta("mappin.and.ellipse", job.location)
-                            meta("clock", "Last verified \(relative(job.lastVerified))")
-                            meta("link", job.sourceName)
-                        }
-                        if !job.summary.isEmpty {
-                            Text(job.summary)
-                                .font(.system(size: 13))
-                                .foregroundStyle(Theme.secondary)
-                                .lineLimit(2)
-                                .truncationMode(.tail)
-                        }
+                            .lineLimit(1)
                     }
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 }
-                HStack(spacing: 8) {
+                Text(job.title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
+                HStack(spacing: 6) {
+                    Badge(title: "Remote", fg: Theme.remoteFg, bg: Theme.remoteBg)
+                    Badge(title: "Part-time", fg: Theme.primary, bg: Theme.primaryLight)
+                    if !job.isAvailable {
+                        Badge(title: "Expired", fg: Theme.danger, bg: Theme.dangerBg)
+                    }
                     Spacer(minLength: 0)
-                    Button("View details") { model.open(job) }
-                        .buttonStyle(PrimaryButton())
                 }
+                meta("mappin.and.ellipse", job.location)
+                Spacer(minLength: 4)
+                Button { model.open(job) } label: {
+                    Text("View details")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PrimaryButton())
             }
-            .padding(16)
+            .padding(14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
