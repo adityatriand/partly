@@ -16,11 +16,14 @@ Listings are loaded from public feeds that allow reuse — [Remotive](https://re
 
 ## Features
 
-- Search, category, location, and posted-date filters over the local catalog
-- Saved jobs, stored only on this Mac
-- Detail page with the source's eligibility evidence and a link out to apply
-- Report a listing. The report stays pending locally and is not submitted anywhere
-- Manual refresh of six permitted feeds. A source that fails leaves that source's previous jobs in place
+- Search across title, company, description, and category. Typing waits briefly before the list updates
+- Sidebar filters for category (search and multi-select), location eligibility, and posted date. Sort is most recent or oldest
+- Results in a grid of one to five columns, depending on the window width. Ten jobs per page
+- Job details in a dialog: overview, source details, and company, with the application link in the footer
+- Report a listing from that dialog. The report stays on this Mac and is not submitted anywhere
+- Light and dark appearance, remembered on this Mac. Dialogs use the same appearance
+- Manual refresh of six permitted feeds. The summary can be closed. A source that fails leaves that source's previous jobs in place
+- Listings that are closed, missing, or worded as expired are not shown. A refresh does not store a title that reads as expired
 - Freshness is the last successful check, not the last time you opened the app
 
 ## Requirements
@@ -46,12 +49,12 @@ Data lives in:
 
 | File | Purpose |
 | :---- | :---- |
-| `~/Library/Application Support/Partly/jobs.sqlite` | Jobs, saved state, local reports |
+| `~/Library/Application Support/Partly/jobs.sqlite` | Jobs and local reports |
 
 ## How a job gets in
 
 1. A refresh downloads each feed.
-2. Rows that are not clearly remote and part-time are dropped.
+2. Rows that are not clearly remote and part-time are dropped. A title or job type that reads as expired or closed is dropped too.
 3. Rows are matched by source id, then by canonical URL, and written in one SQLite transaction.
 4. After a successful catalog, older open rows from that source that were not in the catalog are marked missing. They are kept.
 5. A failed download does not delete anything and does not move the verification time.
@@ -82,7 +85,7 @@ swift build --target PartlyCore
 
 `swift run Check` covers part-time filtering, dedupe, failed refresh, and missing listings. It does not call the network.
 
-The interface follows the Partly desktop layout: list, detail, report, empty, unavailable, and error. The system font is used. Phone layouts from the design sheet are not a separate target.
+The interface is the job list, with details and About in dialogs. Report, empty, unavailable, and error states stay in those dialogs. The system font is used. Phone layouts are not a separate target.
 
 ## License
 
