@@ -219,6 +219,7 @@ func makeListing(
     let company = company.trimmingCharacters(in: .whitespacesAndNewlines)
     let sourceID = sourceID.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !title.isEmpty, !company.isEmpty, !sourceID.isEmpty else { return nil }
+    guard !isExpiredListing(title) else { return nil }
     guard isPartTimeListing(partTimeEvidence) else { return nil }
     guard !remoteEvidence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
     let applyRaw = (applicationURL ?? url).trimmingCharacters(in: .whitespacesAndNewlines)

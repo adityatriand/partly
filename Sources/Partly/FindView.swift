@@ -3,6 +3,7 @@ import SwiftUI
 
 struct FindView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.theme) private var theme
     @StateObject private var page = Hold(1)
     @StateObject private var categoryQuery = Hold("")
     @StateObject private var search = DebouncedSearch()
@@ -35,7 +36,7 @@ struct FindView: View {
             if model.bootError != nil {
                 StatusPage(
                     symbol: "exclamationmark.icloud",
-                    tint: Theme.danger,
+                    tint: theme.danger,
                     title: "Unable to load jobs",
                     message: model.bootError ?? "",
                     primary: "Retry",
@@ -50,7 +51,7 @@ struct FindView: View {
             } else if model.jobs.isEmpty && model.lastError != nil {
                 StatusPage(
                     symbol: "exclamationmark.icloud",
-                    tint: Theme.danger,
+                    tint: theme.danger,
                     title: "Unable to load jobs",
                     message: "We couldn't fetch jobs from the sources right now. \(model.lastError ?? "")",
                     primary: "Retry",
@@ -61,7 +62,7 @@ struct FindView: View {
             } else if !model.jobs.isEmpty && rows.isEmpty {
                 StatusPage(
                     symbol: "magnifyingglass",
-                    tint: Theme.primary,
+                    tint: theme.primary,
                     title: "No jobs match your search",
                     message: "Try adjusting your filters or search terms. We'll show you new opportunities soon.",
                     primary: "Clear filters",
@@ -72,7 +73,7 @@ struct FindView: View {
             } else if model.jobs.isEmpty {
                 StatusPage(
                     symbol: "magnifyingglass",
-                    tint: Theme.primary,
+                    tint: theme.primary,
                     title: "No listings stored yet",
                     message: "Refresh pulls remote part-time jobs from Remotive, Jobicy, Remote OK, Arbeitnow, Himalayas, and RemoteJobs.org. They stay on this Mac afterwards, including offline.",
                     primary: "Refresh",
@@ -106,15 +107,15 @@ struct FindView: View {
             hero
             toolbar
             if let banner = model.banner {
-                note(banner, bg: Theme.primaryLight, fg: Theme.primary)
+                note(banner, bg: theme.primaryLight, fg: theme.primary)
             } else if let stale = model.staleNote {
-                note(stale, bg: Theme.warningBg, fg: Color(red: 0.57, green: 0.25, blue: 0.05))
+                note(stale, bg: theme.warningBg, fg: theme.warningFg)
             }
             HStack(alignment: .top, spacing: 16) {
                 filters
                 VStack(alignment: .leading, spacing: 12) {
-                    jobGrid(width: resultsWidth)
                     footer
+                    jobGrid(width: resultsWidth)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -141,115 +142,130 @@ struct FindView: View {
     }
 
     private var hero: some View {
-        Card {
-            HStack(alignment: .center, spacing: 24) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Remote & Part-Time Jobs\nin One Place")
-                        .font(.system(size: 30, weight: .bold))
-                        .foregroundStyle(Theme.text)
-                    Text("Find genuine remote, part-time jobs with clear details and direct links to apply.")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Theme.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 12)
-                ZStack {
-                    Circle().fill(Theme.primaryLight).frame(width: 150, height: 150)
-                    Image(systemName: "laptopcomputer")
-                        .font(.system(size: 54))
-                        .foregroundStyle(Theme.primary)
-                    Image(systemName: "leaf.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Theme.success)
-                        .offset(x: 58, y: -48)
-                    Text("Part-time")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Theme.primary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(.white)
-                        .clipShape(Capsule())
-                        .offset(x: 70, y: 36)
-                }
-                .frame(width: 220, height: 160)
+        HStack(alignment: .center, spacing: 24) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Remote & Part-Time Jobs\nin One Place")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(theme.text)
+                Text("Find genuine remote, part-time jobs with clear details and direct links to apply.")
+                    .font(.system(size: 15))
+                    .foregroundStyle(theme.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(24)
+            Spacer(minLength: 12)
+            ZStack {
+                Circle()
+                    .fill(theme.primaryLight)
+                    .frame(width: 168, height: 168)
+                Circle()
+                    .fill(theme.primary.opacity(0.08))
+                    .frame(width: 120, height: 120)
+                    .offset(x: 48, y: 18)
+                Image(systemName: "laptopcomputer")
+                    .font(.system(size: 62, weight: .light))
+                    .foregroundStyle(theme.primary)
+                Image(systemName: "briefcase.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.primary)
+                    .padding(8)
+                    .background(Circle().fill(theme.surface))
+                    .offset(x: 72, y: -42)
+            }
+            .frame(width: 240, height: 150)
         }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 26)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(theme.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(theme.border.opacity(0.7))
+        )
     }
 
     private var toolbar: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                field(icon: "magnifyingglass") {
-                    TextField("Job title, keyword, or company", text: Binding(
+                field(icon: "magnifyingglass", radius: 14) {
+                    TextField("Search jobs, skills, or company...", text: Binding(
                         get: { search.text },
                         set: { search.edit($0) { model.query = $0 } }
                     ))
                     .textFieldStyle(.plain)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.text)
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.text)
                 }
                 .frame(maxWidth: .infinity)
-                Button("Search") {
+                Button {
                     search.commitNow { model.query = $0 }
                     Task { await model.searchTapped() }
+                } label: {
+                    Label("Search", systemImage: "magnifyingglass")
                 }
-                .buttonStyle(PrimaryButton())
+                .buttonStyle(PrimaryButton(corner: 12))
             }
             HStack(spacing: 8) {
-                field(icon: "mappin.and.ellipse") {
-                    FilterMenu(
-                        value: model.locationChoice.rawValue,
-                        options: Array(AppModel.LocationChoice.allCases),
-                        label: \.rawValue
-                    ) { model.locationChoice = $0 }
+                pillMenu(icon: "mappin.and.ellipse", value: model.locationChoice.rawValue, options: Array(AppModel.LocationChoice.allCases), label: \.rawValue) {
+                    model.locationChoice = $0
                 }
-                .frame(maxWidth: .infinity)
-                field(icon: "square.grid.2x2") {
-                    FilterMenu(
-                        value: model.categoryPick,
-                        options: ["All categories"] + model.categories,
-                        label: { $0 }
-                    ) { model.chooseCategory($0) }
+                pillMenu(icon: "square.grid.2x2", value: model.categoryPick, options: ["All categories"] + model.categories, label: { $0 }) {
+                    model.chooseCategory($0)
                 }
-                .frame(maxWidth: .infinity)
-                field(icon: "arrow.up.arrow.down") {
-                    FilterMenu(
-                        value: model.sort.rawValue,
-                        options: Array(AppModel.Sort.allCases),
-                        label: \.rawValue
-                    ) { model.sort = $0 }
+                pillMenu(icon: "arrow.up.arrow.down", value: model.sort.rawValue, options: Array(AppModel.Sort.allCases), label: \.rawValue) {
+                    model.sort = $0
                 }
-                .frame(maxWidth: .infinity)
-                Button(model.refreshing ? "Refreshing…" : "Refresh") { Task { await model.refresh() } }
-                    .buttonStyle(QuietButton())
-                    .disabled(model.refreshing)
+                Spacer(minLength: 12)
+                Button { Task { await model.refresh() } } label: {
+                    Label(model.refreshing ? "Refreshing…" : "Refresh", systemImage: "arrow.clockwise")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(theme.secondary)
+                }
+                .buttonStyle(PlainActionButton())
+                .disabled(model.refreshing)
             }
-            Text(model.freshness)
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.secondary)
-                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 
-    private func field<Content: View>(icon: String, @ViewBuilder content: () -> Content) -> some View {
+    private func pillMenu<Item: Hashable>(
+        icon: String,
+        value: String,
+        options: [Item],
+        label: @escaping (Item) -> String,
+        select: @escaping (Item) -> Void
+    ) -> some View {
+        field(icon: icon, radius: 12) {
+            FilterMenu(value: value, options: options, label: label, select: select, compact: true)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func field<Content: View>(icon: String, radius: CGFloat = Theme.controlRadius, @ViewBuilder content: () -> Content) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: icon).foregroundStyle(Theme.secondary)
+            Image(systemName: icon).foregroundStyle(theme.secondary)
             content()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.white)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
-        .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius).stroke(Theme.border))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: radius))
+        .overlay(RoundedRectangle(cornerRadius: radius).stroke(theme.border))
     }
 
     private var filters: some View {
         Card {
             VStack(alignment: .leading, spacing: 16) {
-                Label("Filters", systemImage: "slider.horizontal.3")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.text)
+                HStack {
+                    Label("Filters", systemImage: "line.3.horizontal.decrease")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(theme.text)
+                    Spacer(minLength: 8)
+                    Button("Clear all") { model.clearFilters() }
+                        .buttonStyle(PlainActionButton())
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(theme.primary)
+                }
                 filterGroup("Job category") {
                     categoryFilters
                 }
@@ -281,26 +297,25 @@ struct FindView: View {
         if model.categories.isEmpty {
             Text("Refresh to load categories")
                 .font(.system(size: 12))
-                .foregroundStyle(Theme.secondary)
+                .foregroundStyle(theme.secondary)
         } else {
-            if model.categories.count > 8 {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Theme.secondary)
-                    TextField("Find a category", text: $categoryQuery.value)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12))
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(Theme.bg)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.secondary)
+                TextField("Search category...", text: $categoryQuery.value)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .foregroundStyle(theme.text)
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(theme.bg)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
             if !model.selectedCategories.isEmpty {
                 Text("\(model.selectedCategories.count) selected")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Theme.primary)
+                    .foregroundStyle(theme.primary)
             }
             if shownCategories.count > 8 {
                 ScrollView {
@@ -318,7 +333,7 @@ struct FindView: View {
             if shownCategories.isEmpty {
                 Text("No matching category")
                     .font(.system(size: 12))
-                    .foregroundStyle(Theme.secondary)
+                    .foregroundStyle(theme.secondary)
             }
             ForEach(shownCategories, id: \.self) { name in
                 CheckRow(title: name, on: model.selectedCategories.contains(name)) {
@@ -332,7 +347,7 @@ struct FindView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Theme.text)
+                .foregroundStyle(theme.text)
             content()
         }
     }
@@ -343,7 +358,7 @@ struct FindView: View {
             let end = min(safePage * pageSize, rows.count)
             Text("Showing \(start)-\(end) of \(rows.count) jobs")
                 .font(.system(size: 13))
-                .foregroundStyle(Theme.secondary)
+                .foregroundStyle(theme.secondary)
             Spacer()
             HStack(spacing: 6) {
                 pageButton("chevron.left", enabled: safePage > 1) { page.value = safePage - 1 }
@@ -353,32 +368,31 @@ struct FindView: View {
                         Button("\(number)") { page.value = number }
                             .buttonStyle(PlainActionButton())
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(number == safePage ? .white : Theme.text)
+                            .foregroundStyle(number == safePage ? theme.onPrimary : theme.text)
                             .frame(width: 28, height: 28)
-                            .background(number == safePage ? Theme.primary : .white)
+                            .background(number == safePage ? theme.primary : theme.surface)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(theme.border))
                     case .gap:
                         Text("…")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.secondary)
+                            .foregroundStyle(theme.secondary)
                             .frame(width: 16, height: 28)
                     }
                 }
                 pageButton("chevron.right", enabled: safePage < pageCount) { page.value = safePage + 1 }
             }
         }
-        .padding(.top, 4)
     }
 
     private func pageButton(_ icon: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .frame(width: 28, height: 28)
-                .foregroundStyle(enabled ? Theme.text : Theme.secondary)
-                .background(.white)
+                .foregroundStyle(enabled ? theme.text : theme.secondary)
+                .background(theme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(theme.border))
         }
         .buttonStyle(PlainActionButton())
         .disabled(!enabled)
@@ -414,13 +428,23 @@ struct FindView: View {
     }
 
     private func note(_ text: String, bg: Color, fg: Color) -> some View {
-        Text(text)
-            .font(.system(size: 13))
-            .foregroundStyle(fg)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(bg)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
+        HStack(alignment: .top, spacing: 10) {
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundStyle(fg)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button { model.hideNotice() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(fg)
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(PlainActionButton())
+            .accessibilityLabel("Hide")
+        }
+        .padding(12)
+        .background(bg)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
     }
 }
 
@@ -454,10 +478,12 @@ final class DebouncedSearch: ObservableObject {
 }
 
 struct FilterMenu<Item: Hashable>: View {
+    @Environment(\.theme) private var theme
     let value: String
     let options: [Item]
     let label: (Item) -> String
     let select: (Item) -> Void
+    var compact: Bool = false
 
     var body: some View {
         Menu {
@@ -468,25 +494,26 @@ struct FilterMenu<Item: Hashable>: View {
             HStack(spacing: 6) {
                 Text(value)
                     .font(.system(size: 13))
-                    .foregroundStyle(Theme.text)
+                    .foregroundStyle(theme.text)
                     .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: compact ? nil : .infinity, alignment: .leading)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Theme.secondary)
+                    .foregroundStyle(theme.secondary)
             }
             .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
-        .foregroundStyle(Theme.text)
-        .tint(Theme.text)
-        .colorScheme(.light)
+        .foregroundStyle(theme.text)
+        .tint(theme.text)
+        .colorScheme(theme.scheme)
         .actionCursor()
     }
 }
 
 struct CheckRow: View {
+    @Environment(\.theme) private var theme
     let title: String
     let on: Bool
     let action: () -> Void
@@ -495,10 +522,10 @@ struct CheckRow: View {
         Button(action: action) {
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: on ? "checkmark.square.fill" : "square")
-                    .foregroundStyle(on ? Theme.primary : Theme.secondary)
+                    .foregroundStyle(on ? theme.primary : theme.secondary)
                 Text(title)
                     .font(.system(size: 13))
-                    .foregroundStyle(Theme.text)
+                    .foregroundStyle(theme.text)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
                 Spacer(minLength: 0)
@@ -510,6 +537,7 @@ struct CheckRow: View {
 
 struct JobCard: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.theme) private var theme
     let job: Listing
 
     var body: some View {
@@ -520,35 +548,39 @@ struct JobCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(job.company)
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.text)
+                            .foregroundStyle(theme.text)
                             .lineLimit(1)
                         Text(job.sourceName)
                             .font(.system(size: 12))
-                            .foregroundStyle(Theme.secondary)
+                            .foregroundStyle(theme.secondary)
                             .lineLimit(1)
                     }
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 }
                 Text(job.title)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Theme.text)
+                    .foregroundStyle(theme.text)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
                 HStack(spacing: 6) {
-                    Badge(title: "Remote", fg: Theme.remoteFg, bg: Theme.remoteBg)
-                    Badge(title: "Part-time", fg: Theme.primary, bg: Theme.primaryLight)
+                    Badge(title: "Remote", fg: theme.remoteFg, bg: theme.remoteBg)
+                    Badge(title: "Part-time", fg: theme.primary, bg: theme.primaryLight)
                     if !job.isAvailable {
-                        Badge(title: "Expired", fg: Theme.danger, bg: Theme.dangerBg)
+                        Badge(title: "Expired", fg: theme.danger, bg: theme.dangerBg)
                     }
                     Spacer(minLength: 0)
                 }
                 meta("mappin.and.ellipse", job.location)
                 Spacer(minLength: 4)
                 Button { model.open(job) } label: {
-                    Text("View details")
-                        .frame(maxWidth: .infinity)
+                    HStack(spacing: 6) {
+                        Text("View details")
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 11, weight: .bold))
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PrimaryButton())
+                .buttonStyle(PrimaryButton(corner: 10))
             }
             .padding(14)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -558,13 +590,14 @@ struct JobCard: View {
     private func meta(_ icon: String, _ text: String) -> some View {
         Label(text, systemImage: icon)
             .font(.system(size: 12))
-            .foregroundStyle(Theme.secondary)
+            .foregroundStyle(theme.secondary)
             .labelStyle(.titleAndIcon)
             .lineLimit(1)
     }
 }
 
 struct StatusPage: View {
+    @Environment(\.theme) private var theme
     let symbol: String
     let tint: Color
     let title: String
@@ -584,10 +617,10 @@ struct StatusPage: View {
             }
             Text(title)
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Theme.text)
+                .foregroundStyle(theme.text)
             Text(message)
                 .font(.system(size: 14))
-                .foregroundStyle(Theme.secondary)
+                .foregroundStyle(theme.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
             HStack(spacing: 10) {

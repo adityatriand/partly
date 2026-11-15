@@ -64,6 +64,7 @@ public enum Remotive {
         let title = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let company = item.companyName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, !company.isEmpty else { return nil }
+        guard !isExpiredListing(title), !isExpiredListing(item.jobType) else { return nil }
         guard let url = URL(string: item.url), let scheme = url.scheme?.lowercased(), scheme == "https" else {
             return nil
         }

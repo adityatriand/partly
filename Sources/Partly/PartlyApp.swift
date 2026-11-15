@@ -1,5 +1,10 @@
 import SwiftUI
 
+enum Release {
+    static let version = "1.1"
+    static let build = "12"
+}
+
 @main
 struct PartlyApp: App {
     @StateObject private var model = AppModel()

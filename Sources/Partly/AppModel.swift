@@ -17,7 +17,7 @@ enum SourceClient {
     static func fetch(_ url: URL) async throws -> Data {
         var request = URLRequest(url: url)
         request.timeoutInterval = 40
-        request.setValue("Partly/1.0 (local macOS reader)", forHTTPHeaderField: "User-Agent")
+        request.setValue("Partly/\(Release.version) (local macOS reader)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(code) else { throw FetchError.status(code) }
@@ -27,8 +27,6 @@ enum SourceClient {
 
 @MainActor
 final class AppModel: ObservableObject {
-    enum Screen: Equatable { case find, detail }
-
     enum LocationChoice: String, CaseIterable, Identifiable {
         case any = "Any location"
         case worldwide = "Worldwide"
@@ -78,7 +76,6 @@ final class AppModel: ObservableObject {
         var closesListing: Bool { self == .stale || self == .closed }
     }
 
-    @Published var screen: Screen = .find
     @Published var jobs: [Listing] = []
     @Published var query = ""
     @Published var locationChoice: LocationChoice = .any
@@ -92,6 +89,8 @@ final class AppModel: ObservableObject {
     @Published var showAbout = false
     @Published var refreshing = false
     @Published var banner: String?
+    @Published var noticeHidden = false
+    @Published var dark: Bool
     @Published var lastSuccess: Date?
     @Published var lastError: String?
     @Published var bootError: String?
@@ -99,8 +98,22 @@ final class AppModel: ObservableObject {
     private var store: JobStore?
     private var started = false
 
+    init() {
+        dark = UserDefaults.standard.bool(forKey: Self.appearanceKey)
+    }
+
+    func toggleAppearance() {
+        dark.toggle()
+        UserDefaults.standard.set(dark, forKey: Self.appearanceKey)
+    }
+
+    func hideNotice() {
+        banner = nil
+        noticeHidden = true
+    }
+
     var categories: [String] {
-        Array(Set(jobs.map(\.category))).sorted()
+        Array(Set(jobs.filter(\.isAvailable).map(\.category))).sorted()
     }
 
     var filterToken: String {
@@ -114,13 +127,14 @@ final class AppModel: ObservableObject {
     }
 
     var staleNote: String? {
-        guard let lastError, !jobs.isEmpty else { return nil }
+        guard !noticeHidden, let lastError, !jobs.isEmpty else { return nil }
         return "Couldn't refresh (\(lastError)). Showing saved listings from \(freshness.lowercased()). They were not re-verified."
     }
 
     func results() -> [Listing] {
         let now = Date()
         let rows = jobs.filter { job in
+            if !job.isAvailable { return false }
             if !query.isEmpty {
                 let blob = "\(job.title) \(job.company) \(job.summary) \(job.category)".lowercased()
                 if !blob.contains(query.lowercased()) { return false }
@@ -173,10 +187,12 @@ final class AppModel: ObservableObject {
         guard let store, !refreshing else { return }
         let now = Date()
         if !RefreshPolicy.allow(lastAttempt: lastAttempt, now: now) {
+            noticeHidden = false
             banner = "Wait a minute before refreshing again."
             return
         }
         refreshing = true
+        noticeHidden = false
         banner = nil
         defer { refreshing = false }
         try? store.noteAttempt(now)
@@ -206,6 +222,17 @@ final class AppModel: ObservableObject {
         banner = (lines + errors).joined(separator: " · ")
     }
 
+    func toggleSave(_ job: Listing) {
+        guard let store else { return }
+        do {
+            try store.setSaved(id: job.id, saved: !job.saved)
+            apply(try store.snapshot())
+        } catch {
+            noticeHidden = false
+            banner = error.localizedDescription
+        }
+    }
+
     func submitReport(reason: ReportReason, details: String) {
         guard let store, let selected else { return }
         do {
@@ -218,23 +245,20 @@ final class AppModel: ObservableObject {
             )
             apply(try store.snapshot())
             showReport = false
+            noticeHidden = false
             banner = "Report saved on this Mac. Nothing was sent."
         } catch {
+            noticeHidden = false
             banner = error.localizedDescription
         }
     }
 
     func open(_ job: Listing) {
         selected = job
-        screen = .detail
-    }
-
-    func back() {
-        screen = .find
     }
 
     func showFind() {
-        screen = .find
+        selected = nil
     }
 
     func chooseCategory(_ name: String) {
@@ -292,6 +316,8 @@ final class AppModel: ObservableObject {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Partly", isDirectory: true)
     }
+
+    private static let appearanceKey = "partly.appearance.dark"
 
     private static var databasePath: String {
         supportURL.appendingPathComponent("jobs.sqlite").path

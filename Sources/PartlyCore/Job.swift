@@ -170,6 +170,26 @@ public enum RefreshPolicy {
     }
 }
 
+public func isExpiredListing(_ raw: String?) -> Bool {
+    guard let raw else { return false }
+    var letters = ""
+    for scalar in raw.lowercased() {
+        letters.append(scalar.isLetter ? scalar : " ")
+    }
+    let tokens = letters.split(separator: " ").map(String.init)
+    if tokens.contains("expired") { return true }
+    if tokens.contains("closed") && tokens.contains("position") { return true }
+    var window: [String] = []
+    for token in tokens {
+        window.append(token)
+        if window.count > 3 { window.removeFirst() }
+        if window == ["no", "longer", "available"] || window == ["position", "has", "closed"] {
+            return true
+        }
+    }
+    return false
+}
+
 public func duplicateKey(company: String, title: String, location: String) -> String {
     [company, title, location].map(normalizeMatch).joined(separator: "|")
 }
